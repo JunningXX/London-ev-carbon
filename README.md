@@ -10,9 +10,13 @@
 
 ## What I built and who for
 
-A small R + DuckDB pipeline that turns a year of half-hourly carbon intensity forecasts for London into a Tableau dashboard for **London EV owners who charge at home**.
+A small R + DuckDB pipeline that turns a year of half-hourly carbon intensity forecasts for London into a Tableau dashboard for organisations that advise London EV drivers (council sustainability teams, energy suppliers, EV campaigns). They need a simple, evidence-based message they can share: when to plug in makes a measurable difference to CO2 emissions.
 
-The question is simple: does it matter *when* you plug in? The answer for 2025 is yes. Plugging in at **22:30 (before bed)** instead of **18:30 (when you get home)** makes a 4-hour weekday charge **19–28% less carbon-intensive on average**, depending on the season. For an example car (Tesla Model Y, 29.6 kWh per charge) that is about **0.9–1.3 kg of CO2 saved per charge**.
+**The problem.** Most EV owners plug in as soon as they get home, usually early evening. That is also when the grid is most carbon-intensive: demand peaks and solar has gone for the day. The same charge can produce noticeably more CO2 depending only on *when* it starts, but drivers have no simple way to see this.
+
+**The approach.** I compare two realistic plug-in times: **18:30**, a typical time to get home from work, and **22:30**, a typical time to plug in before bed. I chose these instead of the mathematically "cleanest" 4 hours of the night, because most people don't set a charging timer. Both are things a driver could actually do tonight.
+
+**The answer.** For 2025, plugging in at 22:30 instead of 18:30 makes a 4-hour weekday charge **19–28% less carbon-intensive on average**, depending on the season. For an example car (Tesla Model Y, 29.6 kWh per charge) that is about **0.9–1.3 kg of CO2 saved per charge**.
 
 The dashboard shows:
 - a heatmap of average carbon intensity by **day of week × half-hour**, for each season;
