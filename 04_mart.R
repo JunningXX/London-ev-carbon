@@ -63,7 +63,7 @@ kwh_per_charge <- charger_kw * charge_hours   # = 29.6 kWh, about half the 57.5 
 sql <- paste0("
 CREATE OR REPLACE TABLE mart_charging_saving AS
 WITH work_day_evening AS (
-  -- Weekday half-hours between 18:00 and 08:00 only, labelled by season
+  -- Weekday half-hours, labelled by season
   -- (Simplification: slots after midnight are also taken from Mon-Fri dates)
   SELECT
     CASE
@@ -76,8 +76,6 @@ WITH work_day_evening AS (
     forecast_gco2_kwh
   FROM stg_intensity
   WHERE isodow(from_london_time) < 6                    -- Monday to Friday
-    AND (strftime(from_london_time, '%H:%M') >= '18:00'
-      OR strftime(from_london_time, '%H:%M') <  '08:00') -- window crosses midnight, so OR
 ),
 season_avg AS (
   -- Average intensity over each 4-hour charge (8 half-hours), not rounded yet
@@ -103,7 +101,53 @@ FROM season_avg
  
 dbExecute(con, sql)
 
+# ---- Table 3 --------------------------------------------------------------
+# Five rows per weekday per seasaon 
 
+sql_02 <- paste0("
+CREATE OR REPLACE TABLE mart_charging_saving_weekday AS
+WITH work_day_evening AS (
+  -- Weekday half-hours, labelled by season
+  -- (Simplification: slots after midnight are also taken from Mon-Fri dates)
+  SELECT
+    CASE
+      WHEN month(from_london_time) IN (12, 1, 2) THEN 'Winter'
+      WHEN month(from_london_time) IN (3, 4, 5)  THEN 'Spring'
+      WHEN month(from_london_time) IN (6, 7, 8)  THEN 'Summer'
+      ELSE 'Autumn'
+    END                                 AS season,
+    strftime(from_london_time, '%H:%M') AS time_of_day,
+    dayname(from_london_time)           AS day_of_week, 
+    forecast_gco2_kwh
+  FROM stg_intensity
+  WHERE isodow(from_london_time) < 6 
+),
+daily_avg AS (
+  -- Average intensity over each 4-hour charge (8 half-hours), not rounded yet
+  SELECT
+    season,
+    day_of_week,
+    AVG(forecast_gco2_kwh) FILTER (WHERE time_of_day BETWEEN '18:30' AND '22:00')          AS habit_a, -- 18:30 to 22:30
+    AVG(forecast_gco2_kwh) FILTER (WHERE time_of_day >= '22:30' OR time_of_day <= '02:00') AS habit_b  -- 22:30 to 02:30
+  FROM work_day_evening
+  GROUP BY season, day_of_week
+)
+-- Turn intensity (g per kWh) into CO2 per charge (kg): g/kWh x kWh / 1000
+-- Round only here, so the subtraction uses the unrounded averages
+SELECT
+  season,
+  day_of_week,
+  ROUND(habit_a, 1)                                           AS habit_a_gco2_kwh,
+  ROUND(habit_b, 1)                                           AS habit_b_gco2_kwh,
+  ROUND(habit_a * ", kwh_per_charge, " / 1000, 2)             AS kg_co2_habit_a,
+  ROUND(habit_b * ", kwh_per_charge, " / 1000, 2)             AS kg_co2_habit_b,
+  ROUND((habit_a - habit_b) * ", kwh_per_charge, " / 1000, 2) AS kg_saved_per_charge,
+  ROUND((habit_a - habit_b) / habit_a * 100, 1)               AS pct_saved -- kWh cancels out
+FROM daily_avg
+ORDER BY season, day_of_week
+")
+
+dbExecute(con, sql_02)
 # ---- Checks -----------------------------------------------------------------
  
 # Profile has one row per season x weekday x half-hour: expect 1,344
@@ -118,9 +162,8 @@ SELECT
   MAX(n_halfhours) AS max_n
 FROM mart_charging_profile
 "))
- 
-# Saving has one row per season: expect 4
-# Expect Autumn: 157.6 vs 113.3 g/kWh, 1.31 kg saved per charge, 28.1%
-print(dbGetQuery(con, "SELECT * FROM mart_charging_saving"))
+  
+print(dbGetQuery(con, "SELECT * FROM mart_charging_saving")) # expect 4
+print(dbGetQuery(con, "SELECT * FROM mart_charging_saving_weekday")) # expect 20
  
 dbDisconnect(con, shutdown = TRUE)

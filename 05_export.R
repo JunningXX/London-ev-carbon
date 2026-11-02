@@ -29,4 +29,11 @@ TO
   'output/mart_charging_saving.csv' (HEADER)
 ")
 
+dbExecute(con, "
+COPY 
+  mart_charging_saving_weekday 
+TO 
+  'output/mart_charging_saving_weekday.csv' (HEADER)
+")
+
 dbDisconnect(con, shutdown = TRUE)
